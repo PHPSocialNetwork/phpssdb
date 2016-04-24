@@ -24,7 +24,7 @@
     },
     "autoload": {
         "psr-4": {
-            "phpFastCache\\": "src/phpssdb/"
+            "phpssdb\\": "src/phpssdb/"
         }
     }
 }
