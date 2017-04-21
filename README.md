@@ -1,3 +1,1 @@
-# phpssdb
-
-Readme will be completed coming soon...
+# PHP SDK for SSDB - phpSsdb (PhpFastCache Fork)

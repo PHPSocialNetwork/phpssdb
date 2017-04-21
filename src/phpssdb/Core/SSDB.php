@@ -1,24 +1,43 @@
 <?php
-namespace phpssdb\Core;
-use Exception;
-
 /**
- * Copyright (c) 2012, ideawu
- * All rights reserved.
- * @author: ideawu
- * @link: http://www.ideawu.com/
  *
- * SSDB PHP client SDK.
+ * This file is part of phpFastCache.
+ *
+ * @license MIT License (MIT)
+ *
+ * For full copyright and license information, please see the docs/CREDITS.txt file.
+ *
+ * @author (Original project) ideawu http://www.ideawu.com/
+ * @author (PhpFastCache Interfacing) Khoa Bui (khoaofgod)  <khoaofgod@gmail.com> http://www.phpfastcache.com
+ * @author (PhpFastCache Interfacing) Georges.L (Geolim4)  <contact@geolim4.com>
+ *
  */
 
+namespace phpssdb\Core;
+
+use Exception;
+
+
+/**
+ * Class SSDB
+ * @package phpssdb\Core
+ */
 class SSDB
 {
-    private $debug = false;
+    const STEP_SIZE = 0;
+    const STEP_DATA = 1;
     public $sock = null;
+    public $last_resp = null;
+    public $resp = [];
+    public $step;
+    public $block_size;
+    private $debug = false;
     private $_closed = false;
     private $recv_buf = '';
     private $_easy = false;
-    public $last_resp = null;
+    private $batch_mode = false;
+    private $batch_cmds = [];
+    private $async_auth_password = null;
 
     public function __construct($host, $port, $timeout_ms = 2000)
     {
@@ -53,22 +72,15 @@ class SSDB
         $this->_easy = true;
     }
 
-    public function close()
-    {
-        if (!$this->_closed) {
-            @fclose($this->sock);
-            $this->_closed = true;
-            $this->sock = null;
-        }
-    }
-
     public function closed()
     {
         return $this->_closed;
     }
 
-    private $batch_mode = false;
-    private $batch_cmds = [];
+    public function multi()
+    {
+        return $this->batch();
+    }
 
     public function batch()
     {
@@ -76,11 +88,6 @@ class SSDB
         $this->batch_cmds = [];
 
         return $this;
-    }
-
-    public function multi()
-    {
-        return $this->batch();
     }
 
     public function exec()
@@ -102,179 +109,6 @@ class SSDB
         return $ret;
     }
 
-    public function request()
-    {
-        $args = func_get_args();
-        $cmd = array_shift($args);
-
-        return $this->__call($cmd, $args);
-    }
-
-    private $async_auth_password = null;
-
-    public function auth($password)
-    {
-        $this->async_auth_password = $password;
-
-        return null;
-    }
-
-    public function __call($cmd, $params = [])
-    {
-        $cmd = strtolower($cmd);
-        if ($this->async_auth_password !== null) {
-            $pass = $this->async_auth_password;
-            $this->async_auth_password = null;
-            $auth = $this->__call('auth', [$pass]);
-            if ($auth !== true) {
-                throw new Exception("Authentication failed");
-            }
-        }
-
-        if ($this->batch_mode) {
-            $this->batch_cmds[] = [$cmd, $params];
-
-            return $this;
-        }
-
-        try {
-            if ($this->send_req($cmd, $params) === false) {
-                $resp = new SSDB_Response('error', 'send error');
-            } else {
-                $resp = $this->recv_resp($cmd, $params);
-            }
-        } catch (SSDBException $e) {
-            if ($this->_easy) {
-                throw $e;
-            } else {
-                $resp = new SSDB_Response('error', $e->getMessage());
-            }
-        }
-
-        if ($resp->code == 'noauth') {
-            $msg = $resp->message;
-            throw new Exception($msg);
-        }
-
-        $resp = $this->check_easy_resp($cmd, $resp);
-
-        return $resp;
-    }
-
-    private function check_easy_resp($cmd, $resp)
-    {
-        $this->last_resp = $resp;
-        if ($this->_easy) {
-            if ($resp->not_found()) {
-                return null;
-            } else if (!$resp->ok() && !is_array($resp->data)) {
-                return false;
-            } else {
-                return $resp->data;
-            }
-        } else {
-            $resp->cmd = $cmd;
-
-            return $resp;
-        }
-    }
-
-    public function multi_set($kvs = [])
-    {
-        $args = [];
-        foreach ($kvs as $k => $v) {
-            $args[] = $k;
-            $args[] = $v;
-        }
-
-        return $this->__call(__FUNCTION__, $args);
-    }
-
-    public function multi_hset($name, $kvs = [])
-    {
-        $args = [$name];
-        foreach ($kvs as $k => $v) {
-            $args[] = $k;
-            $args[] = $v;
-        }
-
-        return $this->__call(__FUNCTION__, $args);
-    }
-
-    public function multi_zset($name, $kvs = [])
-    {
-        $args = [$name];
-        foreach ($kvs as $k => $v) {
-            $args[] = $k;
-            $args[] = $v;
-        }
-
-        return $this->__call(__FUNCTION__, $args);
-    }
-
-    public function incr($key, $val = 1)
-    {
-        $args = func_get_args();
-
-        return $this->__call(__FUNCTION__, $args);
-    }
-
-    public function decr($key, $val = 1)
-    {
-        $args = func_get_args();
-
-        return $this->__call(__FUNCTION__, $args);
-    }
-
-    public function zincr($name, $key, $score = 1)
-    {
-        $args = func_get_args();
-
-        return $this->__call(__FUNCTION__, $args);
-    }
-
-    public function zdecr($name, $key, $score = 1)
-    {
-        $args = func_get_args();
-
-        return $this->__call(__FUNCTION__, $args);
-    }
-
-    public function zadd($key, $score, $value)
-    {
-        $args = [$key, $value, $score];
-
-        return $this->__call('zset', $args);
-    }
-
-    public function zRevRank($name, $key)
-    {
-        $args = func_get_args();
-
-        return $this->__call("zrrank", $args);
-    }
-
-    public function zRevRange($name, $offset, $limit)
-    {
-        $args = func_get_args();
-
-        return $this->__call("zrrange", $args);
-    }
-
-    public function hincr($name, $key, $val = 1)
-    {
-        $args = func_get_args();
-
-        return $this->__call(__FUNCTION__, $args);
-    }
-
-    public function hdecr($name, $key, $val = 1)
-    {
-        $args = func_get_args();
-
-        return $this->__call(__FUNCTION__, $args);
-    }
-
     private function send_req($cmd, $params)
     {
         $req = [$cmd];
@@ -287,6 +121,47 @@ class SSDB
         }
 
         return $this->send($req);
+    }
+
+    private function send($data)
+    {
+        $ps = [];
+        foreach ($data as $p) {
+            $ps[] = strlen($p);
+            $ps[] = $p;
+        }
+        $s = join("\n", $ps) . "\n\n";
+        if ($this->debug) {
+            echo '> ' . str_replace(["\r", "\n"], ['\r', '\n'], $s) . "\n";
+        }
+        try {
+            while (true) {
+                $ret = @fwrite($this->sock, $s);
+                if ($ret === false || $ret === 0) {
+                    $this->close();
+                    throw new SSDBException('Connection lost');
+                }
+                $s = substr($s, $ret);
+                if (strlen($s) == 0) {
+                    break;
+                }
+                @fflush($this->sock);
+            }
+        } catch (Exception $e) {
+            $this->close();
+            throw new SSDBException($e->getMessage());
+        }
+
+        return $ret;
+    }
+
+    public function close()
+    {
+        if (!$this->_closed) {
+            @fclose($this->sock);
+            $this->_closed = true;
+            $this->sock = null;
+        }
     }
 
     private function recv_resp($cmd, $params)
@@ -511,38 +386,6 @@ class SSDB
         return new SSDB_Response('error', 'Unknown command: $cmd');
     }
 
-    private function send($data)
-    {
-        $ps = [];
-        foreach ($data as $p) {
-            $ps[] = strlen($p);
-            $ps[] = $p;
-        }
-        $s = join("\n", $ps) . "\n\n";
-        if ($this->debug) {
-            echo '> ' . str_replace(["\r", "\n"], ['\r', '\n'], $s) . "\n";
-        }
-        try {
-            while (true) {
-                $ret = @fwrite($this->sock, $s);
-                if ($ret === false || $ret === 0) {
-                    $this->close();
-                    throw new SSDBException('Connection lost');
-                }
-                $s = substr($s, $ret);
-                if (strlen($s) == 0) {
-                    break;
-                }
-                @fflush($this->sock);
-            }
-        } catch (Exception $e) {
-            $this->close();
-            throw new SSDBException($e->getMessage());
-        }
-
-        return $ret;
-    }
-
     private function recv()
     {
         $this->step = self::STEP_SIZE;
@@ -572,12 +415,6 @@ class SSDB
             }
         }
     }
-
-    const STEP_SIZE = 0;
-    const STEP_DATA = 1;
-    public $resp = [];
-    public $step;
-    public $block_size;
 
     private function parse()
     {
@@ -630,5 +467,176 @@ class SSDB
         }
 
         return null;
+    }
+
+    private function check_easy_resp($cmd, $resp)
+    {
+        $this->last_resp = $resp;
+        if ($this->_easy) {
+            if ($resp->not_found()) {
+                return null;
+            } else if (!$resp->ok() && !is_array($resp->data)) {
+                return false;
+            } else {
+                return $resp->data;
+            }
+        } else {
+            $resp->cmd = $cmd;
+
+            return $resp;
+        }
+    }
+
+    public function request()
+    {
+        $args = func_get_args();
+        $cmd = array_shift($args);
+
+        return $this->__call($cmd, $args);
+    }
+
+    public function __call($cmd, $params = [])
+    {
+        $cmd = strtolower($cmd);
+        if ($this->async_auth_password !== null) {
+            $pass = $this->async_auth_password;
+            $this->async_auth_password = null;
+            $auth = $this->__call('auth', [$pass]);
+            if ($auth !== true) {
+                throw new Exception("Authentication failed");
+            }
+        }
+
+        if ($this->batch_mode) {
+            $this->batch_cmds[] = [$cmd, $params];
+
+            return $this;
+        }
+
+        try {
+            if ($this->send_req($cmd, $params) === false) {
+                $resp = new SSDB_Response('error', 'send error');
+            } else {
+                $resp = $this->recv_resp($cmd, $params);
+            }
+        } catch (SSDBException $e) {
+            if ($this->_easy) {
+                throw $e;
+            } else {
+                $resp = new SSDB_Response('error', $e->getMessage());
+            }
+        }
+
+        if ($resp->code == 'noauth') {
+            $msg = $resp->message;
+            throw new Exception($msg);
+        }
+
+        $resp = $this->check_easy_resp($cmd, $resp);
+
+        return $resp;
+    }
+
+    public function auth($password)
+    {
+        $this->async_auth_password = $password;
+
+        return null;
+    }
+
+    public function multi_set($kvs = [])
+    {
+        $args = [];
+        foreach ($kvs as $k => $v) {
+            $args[] = $k;
+            $args[] = $v;
+        }
+
+        return $this->__call(__FUNCTION__, $args);
+    }
+
+    public function multi_hset($name, $kvs = [])
+    {
+        $args = [$name];
+        foreach ($kvs as $k => $v) {
+            $args[] = $k;
+            $args[] = $v;
+        }
+
+        return $this->__call(__FUNCTION__, $args);
+    }
+
+    public function multi_zset($name, $kvs = [])
+    {
+        $args = [$name];
+        foreach ($kvs as $k => $v) {
+            $args[] = $k;
+            $args[] = $v;
+        }
+
+        return $this->__call(__FUNCTION__, $args);
+    }
+
+    public function incr($key, $val = 1)
+    {
+        $args = func_get_args();
+
+        return $this->__call(__FUNCTION__, $args);
+    }
+
+    public function decr($key, $val = 1)
+    {
+        $args = func_get_args();
+
+        return $this->__call(__FUNCTION__, $args);
+    }
+
+    public function zincr($name, $key, $score = 1)
+    {
+        $args = func_get_args();
+
+        return $this->__call(__FUNCTION__, $args);
+    }
+
+    public function zdecr($name, $key, $score = 1)
+    {
+        $args = func_get_args();
+
+        return $this->__call(__FUNCTION__, $args);
+    }
+
+    public function zadd($key, $score, $value)
+    {
+        $args = [$key, $value, $score];
+
+        return $this->__call('zset', $args);
+    }
+
+    public function zRevRank($name, $key)
+    {
+        $args = func_get_args();
+
+        return $this->__call("zrrank", $args);
+    }
+
+    public function zRevRange($name, $offset, $limit)
+    {
+        $args = func_get_args();
+
+        return $this->__call("zrrange", $args);
+    }
+
+    public function hincr($name, $key, $val = 1)
+    {
+        $args = func_get_args();
+
+        return $this->__call(__FUNCTION__, $args);
+    }
+
+    public function hdecr($name, $key, $val = 1)
+    {
+        $args = func_get_args();
+
+        return $this->__call(__FUNCTION__, $args);
     }
 }
