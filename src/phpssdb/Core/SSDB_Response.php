@@ -1,16 +1,14 @@
 <?php
 /**
  *
- * This file is part of phpFastCache.
+ * This file is part of Phpfastcache.
  *
  * @license MIT License (MIT)
  *
- * For full copyright and license information, please see the docs/CREDITS.txt file.
+ * For full copyright and license information, please see the docs/CREDITS.txt and LICENCE files.
  *
- * @author (Original project) ideawu http://www.ideawu.com/
- * @author (PhpFastCache Interfacing) Khoa Bui (khoaofgod)  <khoaofgod@gmail.com> http://www.phpfastcache.com
- * @author (PhpFastCache Interfacing) Georges.L (Geolim4)  <contact@geolim4.com>
- *
+ * @author Georges.L (Geolim4)  <contact@geolim4.com>
+ * @author Contributors  https://github.com/PHPSocialNetwork/phpfastcache/graphs/contributors
  */
 
 namespace phpssdb\Core;
@@ -27,33 +25,29 @@ class SSDB_Response
     public $data = null;
     public $message;
 
-    public function __construct($code = 'ok', $data_or_message = null)
-    {
+    function __construct($code='ok', $data_or_message=null){
         $this->code = $code;
-        if ($code == 'ok') {
+        if($code == 'ok'){
             $this->data = $data_or_message;
-        } else {
+        }else{
             $this->message = $data_or_message;
         }
     }
 
-    public function __toString()
-    {
-        if ($this->code == 'ok') {
-            $s = $this->data === null ? '' : json_encode($this->data);
-        } else {
+    function __toString(){
+        if($this->code == 'ok'){
+            $s = $this->data === null? '' : json_encode($this->data);
+        }else{
             $s = $this->message;
         }
-        return (string)sprintf('%-13s %12s %s', $this->cmd, $this->code, $s);
+        return sprintf('%-13s %12s %s', $this->cmd, $this->code, $s);
     }
 
-    public function ok()
-    {
+    function ok(){
         return $this->code == 'ok';
     }
 
-    public function not_found()
-    {
+    function not_found(){
         return $this->code == 'not_found';
     }
 }

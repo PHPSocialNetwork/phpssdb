@@ -12,12 +12,10 @@
  *
  */
 
-define('PSSDB_PHP_EXT', 'php');
-
 /**
  * Register Autoload
  */
-spl_autoload_register(function ($entity) {
+spl_autoload_register(static function ($entity) {
     $module = explode('\\', $entity, 2);
     if ($module[ 0 ] !== 'phpssdb') {
         /**
@@ -28,7 +26,7 @@ spl_autoload_register(function ($entity) {
     }
 
     $entity = str_replace('\\', '/', $entity);
-    $path = __DIR__ . '/' . $entity . '.' . PSSDB_PHP_EXT;
+    $path = __DIR__ . '/' . $entity . '.' . '.php';
 
     if (is_readable($path)) {
         require_once $path;
