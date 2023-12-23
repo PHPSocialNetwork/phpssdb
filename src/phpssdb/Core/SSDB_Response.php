@@ -18,36 +18,48 @@ namespace phpssdb\Core;
  * Class SSDB_Response
  * @package phpssdb\Core
  */
-class SSDB_Response
+final class SSDB_Response
 {
-    public $cmd;
-    public $code;
-    public $data = null;
-    public $message;
+    public string $cmd;
+    public string $code;
+    public string $message;
 
-    function __construct($code='ok', $data_or_message=null){
+    /**
+     * @var mixed|null
+     */
+    public $data = null;
+
+    /**
+     * @param string $code
+     * @param mixed $data_or_message
+     */
+    function __construct(string $code = 'ok', $data_or_message = null)
+    {
         $this->code = $code;
-        if($code == 'ok'){
+        if ($code == 'ok') {
             $this->data = $data_or_message;
-        }else{
+        } else {
             $this->message = $data_or_message;
         }
     }
 
-    function __toString(){
-        if($this->code == 'ok'){
-            $s = $this->data === null? '' : json_encode($this->data);
-        }else{
+    public function __toString()
+    {
+        if ($this->code == 'ok') {
+            $s = $this->data === null ? '' : json_encode($this->data);
+        } else {
             $s = $this->message;
         }
         return sprintf('%-13s %12s %s', $this->cmd, $this->code, $s);
     }
 
-    function ok(){
-        return $this->code == 'ok';
+    public function ok(): bool
+    {
+        return $this->code === 'ok';
     }
 
-    function not_found(){
-        return $this->code == 'not_found';
+    public function not_found(): bool
+    {
+        return $this->code === 'not_found';
     }
 }

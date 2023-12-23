@@ -20,7 +20,8 @@
             }
         ],
     "require": {
-        "php": ">=5.4.0"
+        "php": ">=7.4.0",
+        "ext-json": "*"
     },
     "autoload": {
         "psr-4": {
